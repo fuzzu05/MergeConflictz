@@ -1,35 +1,67 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>FocusInbox 🚀</title>
+  <title>FocusInbox 🎓</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://accounts.google.com/gsi/client"></script>
 </head>
 <body>
 
-<h1>FocusInbox 🚀</h1>
+<header>
+  <h1>FocusInbox 🎓</h1>
+  <div>
+    <button id="loginBtn" onclick="loginUser()">Login</button>
+    <button onclick="fetchEmails()">Fetch Emails</button>
+    <button onclick="logoutUser()">Logout</button>
+  </div>
+</header>
 
-<button id="login-btn" onclick="login()">Login with Google</button>
-<button onclick="fetchEmails()">Fetch Emails</button>
-<button onclick="startFocus()">Start Focus</button>
-
-<div class="container">
-
-  <div class="box">
-    <h2>✅ Allowed</h2>
-    <ul id="messages"></ul>
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="topbar">
+    <button onclick="startFocus()">Start Focus</button>
+    <button onclick="goToSettings()">⚙️ Settings</button>
   </div>
 
-  <div class="box">
-    <h2>⏳ Queued</h2>
-    <ul id="queue"></ul>
+  <h2>All Messages 📥</h2>
+  <ul id="messages"></ul>
+</div>
+
+<!-- FOCUS SCREEN -->
+<div id="focusScreen" class="hidden">
+  <h2>🧘 Focus Mode</h2>
+  <p id="timer">Time: 25:00</p>
+
+  <div class="container">
+    <div class="box">
+      <h3>🚨 Allowed</h3>
+      <ul id="allowed"></ul>
+    </div>
+
+    <div class="box">
+      <h3>⏳ Queued</h3>
+      <ul id="queue"></ul>
+    </div>
+
+    <div class="box">
+      <h3>❌ Blocked</h3>
+      <ul id="blocked"></ul>
+    </div>
   </div>
 
-  <div class="box">
-    <h2>❌ Blocked</h2>
-    <ul id="blocked"></ul>
-  </div>
+  <button onclick="endFocus()">End Session</button>
+</div>
 
+<!-- SETTINGS -->
+<div id="settings" class="hidden">
+  <h2>⚙️ Settings</h2>
+
+  <label>Focus Time (minutes)</label>
+  <input type="number" id="focusTimeInput" value="25">
+
+  <br><br>
+  <button onclick="saveSettings()">Save</button>
+  <button onclick="goToDashboard()">Back</button>
 </div>
 
 <script type="module" src="script.js"></script>

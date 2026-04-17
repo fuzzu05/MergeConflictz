@@ -7,6 +7,13 @@ import {
   getDocs,
   onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+import {
+  getAuth,
+  signInWithPopup,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -24,34 +31,38 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
 
 // DOM
 const msgList = document.getElementById("messages");
+const allowedList = document.getElementById("allowed");
 const queueList = document.getElementById("queue");
 const blockedList = document.getElementById("blocked");
 
-let focusMode = false;
+let currentUser = null;
 let accessToken = null;
+let mode = "normal"; // normal | focus | block
+let focusTime = 25*60;
 
-// 🔥 GOOGLE LOGIN (CORRECT WAY)
-function login() {
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: "632430619508-0mmfo7ueppf1tg73o4d1obtorhgiiia2.apps.googleusercontent.com",
-    scope: "https://www.googleapis.com/auth/gmail.readonly",
-    callback: (response) => {
-      accessToken = response.access_token;
-      alert("Login successful ✅");
+// 🔐 LOGIN
+window.loginUser = async function () {
+  const res = await signInWithPopup(auth, provider);
+  currentUser = res.user;
+};
 
-      // hide login button
-      document.getElementById("login-btn").style.display = "none";
-      console.log("TOKEN:", accessToken);
-    },
-  });
+window.logoutUser = () => signOut(auth);
 
-  client.requestAccessToken();
-}
+// 🔄 AUTH STATE
+onAuthStateChanged(auth, (user) => {
+  currentUser = user;
 
-window.login = login;
+  if (user) {
+    document.getElementById("loginBtn").style.display = "none";
+    listenToMessages();
+    login();
+  }
+});
 
 // 🧠 CLASSIFIER
 function classify(text) {
@@ -66,27 +77,38 @@ function classify(text) {
   }
 }
 
+function login() {
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: "632430619508-0mmfo7ueppf1tg73o4d1obtorhgiiia2.apps.googleusercontent.com",
+    scope: "https://www.googleapis.com/auth/gmail.readonly",
+    callback: (response) => {
+      accessToken = response.access_token;
+      alert("Login successful ✅");
+
+      // hide login button
+      document.getElementById("loginBtn").style.display = "none";
+      console.log("TOKEN:", accessToken);
+    },
+  });
+
+  client.requestAccessToken();
+}
+
+window.login = login;
+
 // 📧 FETCH REAL EMAILS
 window.fetchEmails = async function () {
-  if (!accessToken) {
-    alert("Login first!");
-    return;
-  }
+  if (!currentUser) {
+  alert("Login first!");
+  return;
+}
 
-  const res = await fetch(
-    "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5",
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
-
-  const data = await res.json();
-
-  for (let msg of data.messages) {
-    const detail = await fetch(
-      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
+if (!accessToken) {
+  alert("Connect Gmail first!");
+  return;
+}
+    const res = await fetch(
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5",
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -94,63 +116,126 @@ window.fetchEmails = async function () {
       }
     );
 
-    const d = await detail.json();
+    const data = await res.json();
+    console.log("MESSAGES:", data);
 
-    const text = d.snippet;
-    const priority = classify(text);
+    if (!data.messages) {
+      alert("No messages found");
+      return;
+    }
 
-    await addDoc(collection(db, "messages"), {
-      text,
-      priority,
-      source: "gmail",
-      timestamp: Date.now()
-    });
-  }
+    for (let msg of data.messages) {
+      const detail = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      const d = await detail.json();
+
+      const text = d.snippet || "No content";
+      const priority = classify(text);
+
+      await addDoc(collection(db, "users", currentUser.uid, "messages"), {
+        text,
+        priority,
+        source: "gmail",
+        timestamp: Date.now()
+      });
+    }
 };
 
-// 🔥 REAL-TIME UI
-onSnapshot(collection(db, "messages"), (snapshot) => {
-  msgList.innerHTML = "";
-  queueList.innerHTML = "";
-  blockedList.innerHTML = "";
+// 🔥 REALTIME LISTENER (USER-SPECIFIC)
+function listenToMessages() {
+  const ref = collection(db, "users", currentUser.uid, "messages");
 
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    const li = document.createElement("li");
-    li.textContent = `${data.text} (${data.priority})`;
+  onSnapshot(ref, (snapshot) => {
+    msgList.innerHTML = "";
+    allowedList.innerHTML = "";
+    queueList.innerHTML = "";
+    blockedList.innerHTML = "";
 
-    if (focusMode) {
-      if (data.priority === "urgent") {
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const li = document.createElement("li");
+      li.textContent = data.text;
+
+      if (mode === "normal") {
         msgList.appendChild(li);
-      } else if (data.priority === "important") {
-        queueList.appendChild(li);
-      } else {
+      }
+
+      if (mode === "focus") {
+        if (data.priority === "urgent") {
+          allowedList.appendChild(li);
+          notify(data.text);
+        } else if (data.priority === "important") {
+          queueList.appendChild(li);
+        } else {
+          blockedList.appendChild(li);
+        }
+      }
+
+      if (mode === "block") {
         blockedList.appendChild(li);
       }
-    } else {
-      msgList.appendChild(li);
-    }
+    });
   });
-});
+}
 
-// 🚀 FOCUS MODE
-window.startFocus = function () {
-  focusMode = true;
-  alert("Focus Mode ON 🚀");
+// 🔔 NOTIFICATION
+function notify(text) {
+  console.log("🚨", text);
+}
+
+// 🧘 START FOCUS
+window.startFocus = () => {
+  mode = "focus";
+
+  document.getElementById("dashboard").classList.add("hidden");
+  document.getElementById("focusScreen").classList.remove("hidden");
+
   startTimer();
+};
+
+// 🚫 HARD BLOCK
+window.startBlock = function () {
+  mode = "block";
+  alert("Hard Block 🚫");
+  startTimer();
+};
+
+// 🛑 END FOCUS
+window.endFocus = () => {
+  mode = "normal";
+
+  document.getElementById("focusScreen").classList.add("hidden");
+  document.getElementById("dashboard").classList.remove("hidden");
 };
 
 // ⏱️ TIMER
 function startTimer() {
-  let time = 60;
+  let time = focusTime;
 
   const interval = setInterval(() => {
     time--;
 
+    document.getElementById("timer").textContent =
+      "Time: " + Math.floor(time / 60) + ":" + (time % 60);
+    
     if (time <= 0) {
       clearInterval(interval);
       alert("Focus session complete!");
-      focusMode = false;
+      endFocus();
     }
   }, 1000);
 }
+
+// ⚙️ SETTINGS
+window.saveSettings = function () {
+  const mins = document.getElementById("focusTimeInput").value;
+  focusTime = mins * 60;
+  alert("Saved!");
+};
