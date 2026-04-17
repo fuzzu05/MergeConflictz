@@ -15,7 +15,7 @@ const firebaseConfig = {
     measurementId: "G-4W53PS9H68"
 };
 
-const GEMINI_API_KEY = "AIzaSyDY1G941AdrsvLN4HtpxShlAObdSTGETo4";
+const GEMINI_API_KEY = "AQ.Ab8RN6K55v6TuTRzYfuPbwjE-4wpPZOxWkG1KVqb5clPkJkMGw";
 
 // INITIALIZE
 const app = initializeApp(firebaseConfig);
@@ -153,19 +153,55 @@ window.startFocus = () => {
   startTimer(focusDuration);
 };
 
+// 🔒 HARD BLOCK MODE
+window.startHardBlock = () => {
+  mode = "hardblock";
+  
+  // 1. Enter Fullscreen Mode!
+  if (document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen blocked"));
+  }
+
+  // 2. Hide the exit button (The Trap)
+  document.getElementById("endSessionBtn").classList.add("hidden");
+
+  // 3. Change UI to Lockdown Mode
+  document.body.classList.add("focus-mode-bg", "hard-block-active");
+  document.getElementById("dashboard").classList.add("hidden");
+  document.getElementById("focusScreen").classList.remove("hidden");
+  
+  document.querySelector(".focus-header h2").innerText = "🔒 SYSTEM LOCKED";
+  document.querySelector(".focus-header h2").style.color = "var(--danger)";
+
+  listen();
+  startTimer(focusDuration);
+};
+
 window.endFocus = () => {
-  if (timerInterval) clearInterval(timerInterval);
+  if (timerInterval) clearInterval(timerInterval); 
+  
+  // Exit Fullscreen if active
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  }
+
   mode = "normal";
-  document.body.classList.remove("focus-mode-bg");
+  
+  // Reset the UI
+  document.body.classList.remove("focus-mode-bg", "hard-block-active");
   document.getElementById("focusScreen").classList.add("hidden");
   document.getElementById("dashboard").classList.remove("hidden");
+  
+  // Put text back to normal
+  document.querySelector(".focus-header h2").innerText = "Deep Work Session Active";
+  document.querySelector(".focus-header h2").style.color = "";
+  document.getElementById("endSessionBtn").classList.remove("hidden");
+
   listen();
 };
 
 function startTimer(duration) {
-  // 🛑 Kill any existing timer first!
   if (timerInterval) clearInterval(timerInterval); 
-
   let timer = duration;
   const display = document.getElementById("timer");
   
@@ -176,7 +212,9 @@ function startTimer(duration) {
     
     if (--timer < 0) { 
       clearInterval(timerInterval); 
-      alert("Focus Over!"); 
+      // 🔓 UNLOCK: Give the button back!
+      document.getElementById("endSessionBtn").classList.remove("hidden");
+      alert("Session Complete! System Unlocked. 🔓"); 
       endFocus(); 
     }
   }, 1000);
@@ -206,6 +244,43 @@ window.saveSettings = () => {
     alert("Please enter a valid number of minutes.");
   }
 };
+
+// 🛠️ PERMITTED WORKSPACE (ALLOWLIST)
+let allowedApps = ["VS Code", "Notion", "Figma"]; // Default startup tools
+
+window.addApp = () => {
+  const val = document.getElementById("newAppInput").value.trim();
+  if (val && !allowedApps.includes(val)) {
+    allowedApps.push(val);
+    document.getElementById("newAppInput").value = "";
+    renderApps();
+  }
+};
+
+window.removeApp = (app) => {
+  allowedApps = allowedApps.filter(a => a !== app);
+  renderApps();
+};
+
+function renderApps() {
+  const settingsList = document.getElementById("settingsAllowlist");
+  const focusList = document.getElementById("focusAllowlist");
+
+  if (settingsList) {
+    settingsList.innerHTML = allowedApps.map(a => 
+      `<span class="app-tag">${a} <b onclick="removeApp('${a}')">&times;</b></span>`
+    ).join('');
+  }
+
+  if (focusList) {
+    focusList.innerHTML = allowedApps.map(a => 
+      `<span class="app-tag glow">⚡ ${a}</span>`
+    ).join('');
+  }
+}
+
+// Call this once at the very bottom of your script file to load the defaults:
+renderApps();
 
 // 🚪 LOGOUT LOGIC
 window.logoutUser = async () => {
@@ -240,5 +315,79 @@ window.logoutUser = async () => {
   } catch (error) {
     console.error("🚨 Logout Error:", error);
     alert("Something went wrong logging out.");
+  }
+};
+
+
+// ==========================================
+// 🧠 NEURAL SPRINT PLANNER (NEW FEATURE)
+// ==========================================
+
+// 1. Navigation overrides
+window.goToPlanner = () => {
+  document.getElementById("dashboard").classList.add("hidden");
+  document.getElementById("plannerScreen").classList.remove("hidden");
+};
+
+// Update existing goToDashboard to hide the planner too
+window.goToDashboard = () => {
+  document.getElementById("settingsScreen").classList.add("hidden");
+  document.getElementById("plannerScreen").classList.add("hidden");
+  document.getElementById("dashboard").classList.remove("hidden");
+};
+
+// 2. The AI Generation Logic
+window.generatePlan = async () => {
+  const name = document.getElementById("taskName").value;
+  const time = document.getElementById("taskTime").value;
+  const overview = document.getElementById("taskOverview").value;
+
+  if (!name || !time) return alert("Task name and time are required!");
+
+  const btn = document.getElementById("generatePlanBtn");
+  btn.innerText = "Processing Neural Plan... ⚙️";
+
+  try {
+    const prompt = `Act as an expert project manager. I need to complete this task: "${name}". 
+    I have ${time} available. Overview: "${overview}".
+    
+    Break this down into an actionable sprint. Return ONLY a valid JSON object in this exact format:
+    {
+      "title": "A catchy title for this sprint",
+      "overview": "A 2-sentence motivational overview",
+      "requirements": ["Tool 1", "Skill/Resource 2", "Asset 3"],
+      "schedule": [
+        {"time": "0:00 - 0:30", "step": "Do this first..."},
+        {"time": "0:30 - 1:00", "step": "Then do this..."}
+      ]
+    }`;
+
+    // Send to Gemini
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    
+    // Clean up response (removes ```json formatting if Gemini adds it)
+    const cleanJson = response.text().replace(/```json|```/g, "").trim();
+    const plan = JSON.parse(cleanJson);
+
+    // Render the UI
+    document.getElementById("planOutput").classList.remove("hidden");
+    document.getElementById("planTitle").innerText = plan.title;
+    document.getElementById("planDetails").innerText = plan.overview;
+    
+    document.getElementById("planReqs").innerHTML = plan.requirements
+      .map(req => `<li style="margin-bottom: 5px; border: none; padding: 0; background: transparent;">• ${req}</li>`)
+      .join("");
+      
+    document.getElementById("planSchedule").innerHTML = plan.schedule
+      .map(s => `<li style="margin-bottom: 5px; border: none; padding: 0; background: transparent;"><b>${s.time}:</b> ${s.step}</li>`)
+      .join("");
+
+    btn.innerText = "Regenerate Plan";
+
+  } catch (error) {
+    console.error("Planner Error:", error);
+    alert("Failed to generate plan. Ensure API key is valid.");
+    btn.innerText = "Generate Execution Plan";
   }
 };

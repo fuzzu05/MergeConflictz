@@ -42,8 +42,10 @@
       <div class="action-bar">
         <h2>Inbox Stream 📥</h2>
         <div class="action-buttons">
+          <button onclick="goToPlanner()" class="btn-outline" style="border-color: var(--success); color: var(--success);">🧠 Open Planner</button>
           <button onclick="goToSettings()" class="btn-outline">⚙️ Settings</button>
           <button class="btn-glow" onclick="startFocus()">Enter Deep Work</button>
+          <button class="btn-danger" style="box-shadow: 0 0 15px rgba(239,68,68,0.5);" onclick="startHardBlock()">🔒 Hard Block</button>
         </div>
       </div>
 
@@ -54,7 +56,7 @@
       <div class="focus-header">
         <div class="recording-dot"></div>
         <h2>Deep Work Session Active</h2>
-        <h1 id="timer" class="glitch-time">25:00</h1>
+        <h1 id="timer" class="glitch-time">--:--</h1>
       </div>
 
       <div class="grid-container">
@@ -83,8 +85,48 @@
         </div>
       </div>
 
+      <div class="dock-wrapper">
+        <h4 style="color: var(--text-muted); margin-bottom: 15px; font-weight: 500;">Permitted Workspace</h4>
+        <div id="focusAllowlist" class="tag-cloud center-cloud"></div>
+      </div>
+
       <div class="center-action">
-        <button onclick="endFocus()" class="btn-danger">Terminate Session</button>
+        <button id="endSessionBtn" onclick="endFocus()" class="btn-danger">Terminate Session</button>
+      </div>
+    </div>
+
+    <div id="plannerScreen" class="hidden fade-in" style="max-width: 800px; margin: 40px auto;">
+      <div class="glass-panel" style="border-color: rgba(16, 185, 129, 0.4);">
+        <div class="brief-header">
+          <span class="sparkle">🧠</span>
+          <h3>Neural Sprint Planner</h3>
+        </div>
+        
+        <p class="text-muted" style="margin-bottom: 20px;">Offload your cognitive burden. Let the OS structure your work.</p>
+
+        <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+          <input type="text" id="taskName" placeholder="What is the mission? (e.g., Build Database)" class="sleek-input" style="flex: 2;">
+          <input type="text" id="taskTime" placeholder="Time available? (e.g., 2 hours)" class="sleek-input" style="flex: 1;">
+        </div>
+        <textarea id="taskOverview" placeholder="Quick overview of what needs to be done..." class="sleek-input" style="width: 100%; height: 80px; margin-bottom: 15px; resize: none;"></textarea>
+        
+        <div class="action-buttons" style="justify-content: space-between; margin-bottom: 20px;">
+          <button onclick="goToDashboard()" class="btn-ghost">← Back to OS</button>
+          <button onclick="generatePlan()" id="generatePlanBtn" class="btn-glow">Generate Execution Plan</button>
+        </div>
+        
+        <div id="planOutput" class="hidden" style="margin-top: 20px; padding: 20px; background: rgba(0,0,0,0.3); border-radius: 12px; border: 1px solid var(--border-glass);">
+           <h4 id="planTitle" style="color: var(--success); margin-bottom: 10px;"></h4>
+           <p id="planDetails" class="text-muted" style="margin-bottom: 15px;"></p>
+           
+           <h5 style="margin-bottom: 10px; color: var(--accent-blue);">🛠️ Requirements:</h5>
+           <ul id="planReqs" style="margin-bottom: 20px; padding-left: 20px; list-style-type: disc;"></ul>
+           
+           <h5 style="margin-bottom: 10px; color: var(--accent-blue);">⏱️ The Schedule:</h5>
+           <ul id="planSchedule" style="padding-left: 20px; list-style-type: decimal;"></ul>
+           
+           <button onclick="startFocus()" class="btn-primary" style="margin-top: 20px; width: 100%; padding: 15px; font-size: 1.1rem;">Lock In & Start Sprint</button>
+        </div>
       </div>
     </div>
 
@@ -95,6 +137,15 @@
       <div class="input-group">
         <label for="focusTimeInput">Sprint Duration (Mins)</label>
         <input type="number" id="focusTimeInput" value="25" min="1" max="120" class="sleek-input">
+      </div>
+
+      <div class="input-group">
+        <label>Permitted Apps (Allowlist)</label>
+        <div style="display: flex; gap: 10px;">
+          <input type="text" id="newAppInput" placeholder="e.g., Notion, VS Code" class="sleek-input" style="flex: 1;">
+          <button onclick="addApp()" class="btn-outline">+</button>
+        </div>
+        <div id="settingsAllowlist" class="tag-cloud" style="margin-top: 15px;"></div>
       </div>
       
       <div class="settings-actions">
