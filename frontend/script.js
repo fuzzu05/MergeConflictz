@@ -1,22 +1,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-analytics.js";
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  getDocs,
-  onSnapshot
-} from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
-import {
-  getAuth,
-  signInWithPopup,
-  GoogleAuthProvider,
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, doc, setDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// 🔑 CONFIGS
 const firebaseConfig = {
     apiKey: "AIzaSyB15NotJNKVvgJfyYJMc4HQ9hoVpRJlo4w",
     authDomain: "mergeconflictwinz.firebaseapp.com",
@@ -27,215 +15,230 @@ const firebaseConfig = {
     measurementId: "G-4W53PS9H68"
 };
 
-// Initialize Firebase // 🔹 INIT
+const GEMINI_API_KEY = "AIzaSyDY1G941AdrsvLN4HtpxShlAObdSTGETo4";
+
+// INITIALIZE
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
 const db = getFirestore(app);
 const auth = getAuth(app);
-const provider = new GoogleAuthProvider();
-
-// DOM
-const msgList = document.getElementById("messages");
-const allowedList = document.getElementById("allowed");
-const queueList = document.getElementById("queue");
-const blockedList = document.getElementById("blocked");
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
 let currentUser = null;
-let accessToken = null;
-let mode = "normal"; // normal | focus | block
-let focusTime = 25*60;
+let gmailToken = null;
+let mode = "normal";
+let unsubscribe = null;
+let focusDuration = 25 * 60;
+let timerInterval = null;
 
-// 🔐 LOGIN
-window.loginUser = async function () {
-  const res = await signInWithPopup(auth, provider);
-  currentUser = res.user;
-};
+// 🧠 AI SMART TRIAGE
+async function getSmartTriage(text) {
+  try {
+    const prompt = `Analyze this message: "${text}". 
+    1. Summarize it in exactly 1 sentence.
+    2. Priority: "urgent" (urgent requests/bosses), "important" (work updates), or "low" (ads/generic).
+    Return JSON only: {"summary": "...", "priority": "..."}`;
 
-window.logoutUser = () => signOut(auth);
-
-// 🔄 AUTH STATE
-onAuthStateChanged(auth, (user) => {
-  currentUser = user;
-
-  if (user) {
-    document.getElementById("loginBtn").style.display = "none";
-    listenToMessages();
-    login();
-  }
-});
-
-// 🧠 CLASSIFIER
-function classify(text) {
-  text = text.toLowerCase();
-
-  if (text.includes("urgent") || text.includes("asap") || text.includes("deadline")) {
-    return "urgent";
-  } else if (text.includes("meeting") || text.includes("project")) {
-    return "important";
-  } else {
-    return "low";
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return JSON.parse(response.text().replace(/```json|```/g, ""));
+  } catch (e) {
+    return { summary: text.substring(0, 50), priority: "low" };
   }
 }
 
-function login() {
+// 🔐 AUTH & GMAIL
+window.loginUser = () => signInWithPopup(auth, new GoogleAuthProvider());
+
+window.loginGmail = () => {
   const client = google.accounts.oauth2.initTokenClient({
     client_id: "632430619508-0mmfo7ueppf1tg73o4d1obtorhgiiia2.apps.googleusercontent.com",
     scope: "https://www.googleapis.com/auth/gmail.readonly",
-    callback: (response) => {
-      accessToken = response.access_token;
-      alert("Login successful ✅");
-
-      // hide login button
-      document.getElementById("loginBtn").style.display = "none";
-      console.log("TOKEN:", accessToken);
-    },
+    callback: (res) => { 
+      gmailToken = res.access_token; 
+      alert("Gmail Synced! AI Auto-sync activated 🚀"); 
+      
+      // 1. Run the AI Sync immediately
+      syncAll(); 
+      
+      // 2. Set an interval to auto-run it every 60 seconds (60000 milliseconds)
+      setInterval(syncAll, 60000); 
+    }
   });
-
   client.requestAccessToken();
-}
+};
 
-window.login = login;
-
-// 📧 FETCH REAL EMAILS
-window.fetchEmails = async function () {
-  if (!currentUser) {
-  alert("Login first!");
-  return;
-}
-
-if (!accessToken) {
-  alert("Connect Gmail first!");
-  return;
-}
-    const res = await fetch(
-      "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5",
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
-
+// 📧 SYNC GMAIL + AI (FIXED)
+window.syncAll = async () => {
+  if (!gmailToken || !currentUser) {
+    alert("Please connect both Login and Gmail first!");
+    return;
+  }
+  
+  try {
+    const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5", {
+      headers: { Authorization: `Bearer ${gmailToken}` }
+    });
     const data = await res.json();
-    console.log("MESSAGES:", data);
 
     if (!data.messages) {
-      alert("No messages found");
+      document.getElementById("briefContent").innerText = "Inbox clear! No new messages.";
       return;
     }
 
-    for (let msg of data.messages) {
-      const detail = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+    document.getElementById("briefContent").innerText = "AI is watching your inbox... 👀";
 
-      const d = await detail.json();
+    for (let m of data.messages) {
+      const msgRef = doc(db, "users", currentUser.uid, "messages", m.id);
 
-      const text = d.snippet || "No content";
-      const priority = classify(text);
-
-      await addDoc(collection(db, "users", currentUser.uid, "messages"), {
-        text,
-        priority,
-        source: "gmail",
-        timestamp: Date.now()
+      const detail = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}`, {
+        headers: { Authorization: `Bearer ${gmailToken}` }
       });
+      const d = await detail.json(); // <--- This was the missing 'd'
+      
+      // The AI Brain working:
+      if (d.snippet) {
+        const ai = await getSmartTriage(d.snippet);
+        
+        // 🔥 Using setDoc with merge: true prevents duplicates!
+        // It uses the actual Gmail ID (m.id)
+        await setDoc(msgRef, {
+          text: ai.summary,
+          priority: ai.priority,
+          timestamp: Date.now() // You might want to use d.internalDate here if you want accurate email times
+        }, { merge: true }); 
+      }
     }
+    
+    document.getElementById("briefContent").innerText = "Inbox synced! Focus OS is protecting your time.";
+    
+  } catch (error) {
+    console.error("🚨 Background Sync Error (Safe to ignore):", error);
+    document.getElementById("briefContent").innerText = "Error syncing messages. Check console.";
+  }
 };
 
-// 🔥 REALTIME LISTENER (USER-SPECIFIC)
-function listenToMessages() {
-  const ref = collection(db, "users", currentUser.uid, "messages");
+// 🔄 REALTIME UI
+function listen() {
+  if (unsubscribe) unsubscribe();
+  const q = query(collection(db, "users", currentUser.uid, "messages"), orderBy("timestamp", "desc"));
+  
+  unsubscribe = onSnapshot(q, (snap) => {
+    const lists = ["messages", "allowed", "queue", "blocked"];
+    lists.forEach(id => document.getElementById(id).innerHTML = "");
 
-  onSnapshot(ref, (snapshot) => {
-    msgList.innerHTML = "";
-    allowedList.innerHTML = "";
-    queueList.innerHTML = "";
-    blockedList.innerHTML = "";
-
-    snapshot.forEach((doc) => {
+    snap.forEach(doc => {
       const data = doc.data();
       const li = document.createElement("li");
       li.textContent = data.text;
 
       if (mode === "normal") {
-        msgList.appendChild(li);
-      }
-
-      if (mode === "focus") {
-        if (data.priority === "urgent") {
-          allowedList.appendChild(li);
-          notify(data.text);
-        } else if (data.priority === "important") {
-          queueList.appendChild(li);
-        } else {
-          blockedList.appendChild(li);
-        }
-      }
-
-      if (mode === "block") {
-        blockedList.appendChild(li);
+        document.getElementById("messages").appendChild(li);
+      } else {
+        if (data.priority === "urgent") document.getElementById("allowed").appendChild(li);
+        else if (data.priority === "important") document.getElementById("queue").appendChild(li);
+        else document.getElementById("blocked").appendChild(li);
       }
     });
   });
 }
 
-// 🔔 NOTIFICATION
-function notify(text) {
-  console.log("🚨", text);
-}
-
-// 🧘 START FOCUS
+// 🧘 FOCUS MODES
 window.startFocus = () => {
   mode = "focus";
-
+  document.body.classList.add("focus-mode-bg");
   document.getElementById("dashboard").classList.add("hidden");
   document.getElementById("focusScreen").classList.remove("hidden");
-
-  startTimer();
+  listen();
+  startTimer(focusDuration);
 };
 
-// 🚫 HARD BLOCK
-window.startBlock = function () {
-  mode = "block";
-  alert("Hard Block 🚫");
-  startTimer();
-};
-
-// 🛑 END FOCUS
 window.endFocus = () => {
+  if (timerInterval) clearInterval(timerInterval);
   mode = "normal";
-
+  document.body.classList.remove("focus-mode-bg");
   document.getElementById("focusScreen").classList.add("hidden");
   document.getElementById("dashboard").classList.remove("hidden");
+  listen();
 };
 
-// ⏱️ TIMER
-function startTimer() {
-  let time = focusTime;
+function startTimer(duration) {
+  // 🛑 Kill any existing timer first!
+  if (timerInterval) clearInterval(timerInterval); 
 
-  const interval = setInterval(() => {
-    time--;
-
-    document.getElementById("timer").textContent =
-      "Time: " + Math.floor(time / 60) + ":" + (time % 60);
+  let timer = duration;
+  const display = document.getElementById("timer");
+  
+  timerInterval = setInterval(() => {
+    let mins = Math.floor(timer / 60);
+    let secs = timer % 60;
+    display.textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
     
-    if (time <= 0) {
-      clearInterval(interval);
-      alert("Focus session complete!");
-      endFocus();
+    if (--timer < 0) { 
+      clearInterval(timerInterval); 
+      alert("Focus Over!"); 
+      endFocus(); 
     }
   }, 1000);
 }
 
-// ⚙️ SETTINGS
-window.saveSettings = function () {
+onAuthStateChanged(auth, (user) => { if(user) { currentUser = user; listen(); } });
+
+// ⚙️ SETTINGS LOGIC
+window.goToSettings = () => {
+  document.getElementById("dashboard").classList.add("hidden");
+  document.getElementById("settingsScreen").classList.remove("hidden");
+};
+
+window.goToDashboard = () => {
+  document.getElementById("settingsScreen").classList.add("hidden");
+  document.getElementById("dashboard").classList.remove("hidden");
+};
+
+window.saveSettings = () => {
   const mins = document.getElementById("focusTimeInput").value;
-  focusTime = mins * 60;
-  alert("Saved!");
+  
+  if (mins && mins > 0) {
+    focusDuration = mins * 60; // Convert minutes to seconds
+    alert(`✅ Focus time updated to ${mins} minutes!`);
+    goToDashboard();
+  } else {
+    alert("Please enter a valid number of minutes.");
+  }
+};
+
+// 🚪 LOGOUT LOGIC
+window.logoutUser = async () => {
+  try {
+    // 1. Sign out of Firebase
+    await signOut(auth);
+    
+    // 2. Clear all local variables
+    currentUser = null;
+    gmailToken = null;
+    
+    // 3. Stop any background timers or database listeners
+    if (timerInterval) clearInterval(timerInterval);
+    if (unsubscribe) unsubscribe();
+    
+    // 4. Reset the UI text and lists
+    document.getElementById("briefContent").innerText = "Connect your accounts to generate your focus plan...";
+    const lists = ["messages", "allowed", "queue", "blocked"];
+    lists.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = "";
+    });
+
+    // 5. Ensure they are sent back to the main dashboard view
+    document.body.classList.remove("focus-mode-bg");
+    document.getElementById("focusScreen").classList.add("hidden");
+    document.getElementById("settingsScreen").classList.add("hidden");
+    document.getElementById("dashboard").classList.remove("hidden");
+    
+    alert("Logged out successfully! Catch some sleep soon. 🚀");
+    
+  } catch (error) {
+    console.error("🚨 Logout Error:", error);
+    alert("Something went wrong logging out.");
+  }
 };

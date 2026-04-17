@@ -1,67 +1,108 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>FocusInbox 🎓</title>
+  <meta charset="UTF-8">
+  <title>Focus OS 🎓</title>
   <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://accounts.google.com/gsi/client"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "@google/generative-ai": "https://esm.run/@google/generative-ai"
+      }
+    }
+  </script>
 </head>
 <body>
 
-<header>
-  <h1>FocusInbox 🎓</h1>
-  <div>
-    <button id="loginBtn" onclick="loginUser()">Login</button>
-    <button onclick="fetchEmails()">Fetch Emails</button>
-    <button onclick="logoutUser()">Logout</button>
-  </div>
-</header>
+<div class="app-wrapper">
+  <header class="glass-panel">
+    <div class="logo">
+      <div class="logo-dot"></div>
+      <h1>Focus OS</h1>
+    </div>
+    <div class="auth-controls">
+      <button id="loginBtn" class="btn-outline" onclick="loginUser()">Connect Account</button>
+      <button id="gmailBtn" class="btn-primary" onclick="loginGmail()">Sync Workspace</button>
+      <button onclick="logoutUser()" class="btn-ghost">Logout</button>
+    </div>
+  </header>
 
-<!-- DASHBOARD -->
-<div id="dashboard">
-  <div class="topbar">
-    <button onclick="startFocus()">Start Focus</button>
-    <button onclick="goToSettings()">⚙️ Settings</button>
-  </div>
+  <main id="appContent">
+    <div id="dashboard" class="fade-in">
+      <div id="aiBrief" class="glass-panel ai-brief-card">
+        <div class="brief-header">
+          <span class="sparkle">✨</span>
+          <h3>AI Morning Briefing</h3>
+        </div>
+        <p id="briefContent" class="text-muted">Connect your accounts to generate your neural focus plan...</p>
+      </div>
 
-  <h2>All Messages 📥</h2>
-  <ul id="messages"></ul>
-</div>
+      <div class="action-bar">
+        <h2>Inbox Stream 📥</h2>
+        <div class="action-buttons">
+          <button onclick="goToSettings()" class="btn-outline">⚙️ Settings</button>
+          <button class="btn-glow" onclick="startFocus()">Enter Deep Work</button>
+        </div>
+      </div>
 
-<!-- FOCUS SCREEN -->
-<div id="focusScreen" class="hidden">
-  <h2>🧘 Focus Mode</h2>
-  <p id="timer">Time: 25:00</p>
-
-  <div class="container">
-    <div class="box">
-      <h3>🚨 Allowed</h3>
-      <ul id="allowed"></ul>
+      <ul id="messages" class="message-list"></ul>
     </div>
 
-    <div class="box">
-      <h3>⏳ Queued</h3>
-      <ul id="queue"></ul>
+    <div id="focusScreen" class="hidden fade-in">
+      <div class="focus-header">
+        <div class="recording-dot"></div>
+        <h2>Deep Work Session Active</h2>
+        <h1 id="timer" class="glitch-time">25:00</h1>
+      </div>
+
+      <div class="grid-container">
+        <div class="glass-panel col-urgent">
+          <div class="col-header">
+            <span class="indicator red"></span>
+            <h3>Urgent Bypass</h3>
+          </div>
+          <ul id="allowed" class="message-list"></ul>
+        </div>
+        
+        <div class="glass-panel col-important">
+          <div class="col-header">
+            <span class="indicator yellow"></span>
+            <h3>Queued Updates</h3>
+          </div>
+          <ul id="queue" class="message-list"></ul>
+        </div>
+        
+        <div class="glass-panel col-muted">
+          <div class="col-header">
+            <span class="indicator gray"></span>
+            <h3>Blocked Noise</h3>
+          </div>
+          <ul id="blocked" class="message-list"></ul>
+        </div>
+      </div>
+
+      <div class="center-action">
+        <button onclick="endFocus()" class="btn-danger">Terminate Session</button>
+      </div>
     </div>
 
-    <div class="box">
-      <h3>❌ Blocked</h3>
-      <ul id="blocked"></ul>
+    <div id="settingsScreen" class="hidden glass-panel settings-card fade-in">
+      <h2>System Preferences</h2>
+      <p class="text-muted">Configure your optimal sprint duration.</p>
+      
+      <div class="input-group">
+        <label for="focusTimeInput">Sprint Duration (Mins)</label>
+        <input type="number" id="focusTimeInput" value="25" min="1" max="120" class="sleek-input">
+      </div>
+      
+      <div class="settings-actions">
+        <button onclick="goToDashboard()" class="btn-ghost">Cancel</button>
+        <button onclick="saveSettings()" class="btn-primary">Save Configuration</button>
+      </div>
     </div>
-  </div>
-
-  <button onclick="endFocus()">End Session</button>
-</div>
-
-<!-- SETTINGS -->
-<div id="settings" class="hidden">
-  <h2>⚙️ Settings</h2>
-
-  <label>Focus Time (minutes)</label>
-  <input type="number" id="focusTimeInput" value="25">
-
-  <br><br>
-  <button onclick="saveSettings()">Save</button>
-  <button onclick="goToDashboard()">Back</button>
+  </main>
 </div>
 
 <script type="module" src="script.js"></script>
