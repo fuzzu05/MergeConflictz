@@ -4,7 +4,8 @@ import {
   getFirestore,
   collection,
   addDoc,
-  getDocs
+  getDocs,
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 
 // Your web app's Firebase configuration
@@ -19,111 +20,137 @@ const firebaseConfig = {
     measurementId: "G-4W53PS9H68"
 };
 
-// Initialize Firebase
+// Initialize Firebase // 🔹 INIT
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 const db = getFirestore(app);
 
-// 🔹 DOM ELEMENTS
+// DOM
 const msgList = document.getElementById("messages");
 const queueList = document.getElementById("queue");
 const blockedList = document.getElementById("blocked");
 
-// 🔥 ADD DUMMY DATA (RUN ONCE ONLY)
-async function addDummy() {
-  await addDoc(collection(db, "messages"), {
-    text: "Boss: Deadline today",
-    priority: "urgent"
+let focusMode = false;
+let accessToken = null;
+
+// 🔥 GOOGLE LOGIN (CORRECT WAY)
+function login() {
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: "632430619508-0mmfo7ueppf1tg73o4d1obtorhgiiia2.apps.googleusercontent.com",
+    scope: "https://www.googleapis.com/auth/gmail.readonly",
+    callback: (response) => {
+      accessToken = response.access_token;
+      alert("Login successful ✅");
+
+      // hide login button
+      document.getElementById("login-btn").style.display = "none";
+      console.log("TOKEN:", accessToken);
+    },
   });
 
-  await addDoc(collection(db, "messages"), {
-    text: "Friend: meme 😂",
-    priority: "low"
-  });
-
-  await addDoc(collection(db, "messages"), {
-    text: "Team meeting at 6",
-    priority: "important"
-  });
+  client.requestAccessToken();
 }
 
-// 👉 RUN ONCE then COMMENT IT
-// addDummy();
-// // addDummy(); ← comment this after first run
+window.login = login;
 
-// 🔹 LOAD ALL MESSAGES
-async function loadMessages() {
-  const snapshot = await getDocs(collection(db, "messages"));
+// 🧠 CLASSIFIER
+function classify(text) {
+  text = text.toLowerCase();
 
+  if (text.includes("urgent") || text.includes("asap") || text.includes("deadline")) {
+    return "urgent";
+  } else if (text.includes("meeting") || text.includes("project")) {
+    return "important";
+  } else {
+    return "low";
+  }
+}
+
+// 📧 FETCH REAL EMAILS
+window.fetchEmails = async function () {
+  if (!accessToken) {
+    alert("Login first!");
+    return;
+  }
+
+  const res = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5",
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  const data = await res.json();
+
+  for (let msg of data.messages) {
+    const detail = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    const d = await detail.json();
+
+    const text = d.snippet;
+    const priority = classify(text);
+
+    await addDoc(collection(db, "messages"), {
+      text,
+      priority,
+      source: "gmail",
+      timestamp: Date.now()
+    });
+  }
+};
+
+// 🔥 REAL-TIME UI
+onSnapshot(collection(db, "messages"), (snapshot) => {
   msgList.innerHTML = "";
+  queueList.innerHTML = "";
+  blockedList.innerHTML = "";
 
   snapshot.forEach((doc) => {
     const data = doc.data();
     const li = document.createElement("li");
     li.textContent = `${data.text} (${data.priority})`;
-    msgList.appendChild(li);
-  });
-}
 
-loadMessages();
-
-// 🔥 FOCUS MODE
-let focusMode = false;
-
-async function startFocus() {
-  focusMode = true;
-
-  const snapshot = await getDocs(collection(db, "messages"));
-
-  msgList.innerHTML = "";
-  queueList.innerHTML = "";
-  blockedList.innerHTML = "";
-
-  let allowed = 0;
-  let queued = 0;
-  let blocked = 0;
-
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    const li = document.createElement("li");
-    li.textContent = data.text;
-
-    if (data.priority === "urgent") {
-      msgList.appendChild(li);
-      allowed++;
-    } else if (data.priority === "important") {
-      queueList.appendChild(li);
-      queued++;
+    if (focusMode) {
+      if (data.priority === "urgent") {
+        msgList.appendChild(li);
+      } else if (data.priority === "important") {
+        queueList.appendChild(li);
+      } else {
+        blockedList.appendChild(li);
+      }
     } else {
-      blockedList.appendChild(li);
-      blocked++;
+      msgList.appendChild(li);
     }
   });
+});
 
-  startTimer(allowed, queued, blocked);
-}
+// 🚀 FOCUS MODE
+window.startFocus = function () {
+  focusMode = true;
+  alert("Focus Mode ON 🚀");
+  startTimer();
+};
 
 // ⏱️ TIMER
-function startTimer(allowed, queued, blocked) {
-  let time = 1; // 25 min
+function startTimer() {
+  let time = 60;
 
   const interval = setInterval(() => {
     time--;
 
-    console.log("Time left:", time);
-
     if (time <= 0) {
       clearInterval(interval);
-
-      alert(`
-Focus Complete!
-Allowed: ${allowed}
-Queued: ${queued}
-Blocked: ${blocked}
-      `);
+      alert("Focus session complete!");
+      focusMode = false;
     }
   }, 1000);
 }
-
-// 🔹 MAKE BUTTON WORK
-window.startFocus = startFocus;

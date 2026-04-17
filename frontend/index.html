@@ -1,23 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Focus App</title>
+  <title>FocusInbox 🚀</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://accounts.google.com/gsi/client"></script>
 </head>
 <body>
 
-<h1>FocusInbox</h1>
+<h1>FocusInbox 🚀</h1>
 
+<button id="login-btn" onclick="login()">Login with Google</button>
+<button onclick="fetchEmails()">Fetch Emails</button>
 <button onclick="startFocus()">Start Focus</button>
 
-<h2>Messages</h2>
-<ul id="messages"></ul>
+<div class="container">
 
-<h2>Queued</h2>
-<ul id="queue"></ul>
+  <div class="box">
+    <h2>✅ Allowed</h2>
+    <ul id="messages"></ul>
+  </div>
 
-<h2>Blocked</h2>
-<ul id="blocked"></ul>
+  <div class="box">
+    <h2>⏳ Queued</h2>
+    <ul id="queue"></ul>
+  </div>
+
+  <div class="box">
+    <h2>❌ Blocked</h2>
+    <ul id="blocked"></ul>
+  </div>
+
+</div>
 
 <script type="module" src="script.js"></script>
 </body>
