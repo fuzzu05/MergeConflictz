@@ -102,4 +102,4 @@ To monetize FocusFlow for "Power Users", we plan to introduce **FocusFlow Pro** 
 - **Deep Analytics:** GitHub-style "Focus Heatmaps" and advanced data exporting. 
 
 ---
-*Created with ❤️ for Hackathon '26*
+*Created with ❤️ for SummerHacks '26*
