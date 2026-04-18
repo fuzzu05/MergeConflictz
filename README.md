@@ -1,7 +1,7 @@
 # 🧠 FocusFlow: The Cognitive Offloader
 
 > **Elevating Deep Work for Students & Professionals.** 
-> Built for Hackathon '26 (MergeConflictz).
+> Built for SummerHacks Hackathon '26 (MergeConflictWinz).
 
 ![FocusFlow UI Concept](https://img.shields.io/badge/Status-Active-success) ![Tech Stack](https://img.shields.io/badge/Stack-HTML%20%7C%20CSS%20%7C%20JS%20%7C%20Firebase-blue) ![AI Integration](https://img.shields.io/badge/AI-Groq%20Llama%203-purple)
 
