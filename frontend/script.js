@@ -177,26 +177,33 @@ window.startHardBlock = () => {
   startTimer(focusDuration);
 };
 
-window.endFocus = () => {
+window.endFocus = async () => {
   if (timerInterval) clearInterval(timerInterval); 
   
-  // Exit Fullscreen if active
-  if (document.fullscreenElement) {
-    document.exitFullscreen();
+  // 📊 LOG THE SESSION DATA
+  if (currentUser && mode !== "normal") {
+    const sessionRef = doc(collection(db, "users", currentUser.uid, "stats"));
+    const durationReached = focusDuration - (parseInt(document.getElementById("timer").textContent.split(':')[0]) * 60);
+    
+    // Count how many notifications are currently in the blocked/queued lists
+    const blockedCount = document.getElementById("blocked").children.length;
+    const queuedCount = document.getElementById("queue").children.length;
+
+    await setDoc(sessionRef, {
+      date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+      timestamp: Date.now(),
+      durationMinutes: Math.floor(durationReached / 60),
+      notificationsBlocked: blockedCount + queuedCount,
+      mode: mode
+    });
   }
 
+  // (Existing UI Reset Logic Below)
+  if (document.fullscreenElement) document.exitFullscreen();
   mode = "normal";
-  
-  // Reset the UI
   document.body.classList.remove("focus-mode-bg", "hard-block-active");
   document.getElementById("focusScreen").classList.add("hidden");
   document.getElementById("dashboard").classList.remove("hidden");
-  
-  // Put text back to normal
-  document.querySelector(".focus-header h2").innerText = "Deep Work Session Active";
-  document.querySelector(".focus-header h2").style.color = "";
-  document.getElementById("endSessionBtn").classList.remove("hidden");
-
   listen();
 };
 
