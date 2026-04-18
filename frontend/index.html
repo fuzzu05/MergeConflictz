@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Focus OS 🎓</title>
+  <title>FocusFlow 🎓</title>
   <link rel="stylesheet" href="style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://accounts.google.com/gsi/client"></script>
   <script type="importmap">
     {
@@ -16,62 +16,109 @@
 </head>
 <body>
 
-<div class="app-wrapper">
-  <header class="glass-panel">
-    <div class="logo">
-      <div class="logo-dot"></div>
-      <h1>Focus OS</h1>
-    </div>
-    <div class="auth-controls">
-      <button id="loginBtn" class="btn-outline" onclick="loginUser()">Connect Account</button>
-      <button id="gmailBtn" class="btn-primary" onclick="loginGmail()">Sync Workspace</button>
-      <button onclick="logoutUser()" class="btn-ghost">Logout</button>
-    </div>
-  </header>
-
-  <main id="appContent">
-    <div id="dashboard" class="fade-in">
-      <div id="aiBrief" class="glass-panel ai-brief-card">
-        <div class="brief-header">
-          <span class="sparkle">✨</span>
-          <h3>AI Morning Briefing</h3>
-        </div>
-        <p id="briefContent" class="text-muted">Connect your accounts to generate your neural focus plan...</p>
+<div class="os-layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar glass-panel">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-dot"></div>
+        <h1>FocusFlow</h1>
       </div>
-
-      <div id="insightsPanel" class="glass-panel" style="margin-bottom: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-        <div>
-            <h4 style="color: var(--accent-blue); margin-bottom: 10px;">Weekly Focus</h4>
-            <h2 id="weeklyHours">0.0 <span style="font-size: 0.9rem; color: var(--text-muted);">hrs</span></h2>
-        </div>
-        <div>
-            <h4 style="color: var(--danger); margin-bottom: 10px;">Distractions Deflected</h4>
-            <h2 id="totalBlocked">0</h2>
-        </div>
+      <div class="user-badge hidden" id="userBadge">
+        <span class="status-dot"></span> Student Online
       </div>
-
-      <div class="action-bar">
-        <h2>Inbox Stream 📥</h2>
-        <div class="action-buttons">
-          <button onclick="goToPlanner()" class="btn-outline" style="border-color: var(--success); color: var(--success);">🧠 Open Planner</button>
-          <button onclick="goToSettings()" class="btn-outline">⚙️ Settings</button>
-          <button class="btn-glow" onclick="startFocus()">Enter Deep Work</button>
-          <button class="btn-danger" style="box-shadow: 0 0 15px rgba(239,68,68,0.5);" onclick="startHardBlock()">🔒 Hard Block</button>
-        </div>
-      </div>
-
-      <ul id="messages" class="message-list"></ul>
     </div>
 
-    <div id="focusScreen" class="hidden fade-in">
+    <nav class="sidebar-nav">
+      <button onclick="goToDashboard()" class="nav-item active" id="nav-dashboard">
+        <span class="icon">📊</span> Dashboard
+      </button>
+      <button onclick="goToPlanner()" class="nav-item" id="nav-planner">
+        <span class="icon">🧠</span> Neural Planner
+      </button>
+      <button onclick="goToSettings()" class="nav-item" id="nav-settings">
+        <span class="icon">⚙️</span> Settings
+      </button>
+      
+      <div class="nav-divider"></div>
+
+      <button class="nav-item btn-glow-subtle" onclick="startFocus()" id="nav-focus">
+        <span class="icon">⚡</span> Deep Work
+      </button>
+      <button class="nav-item danger-text" onclick="startHardBlock()">
+        <span class="icon">🔒</span> Hard Block
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="auth-controls" id="authSection">
+        <button id="loginBtn" class="btn-outline full-width" onclick="loginUser()">Connect Account</button>
+        <button id="gmailBtn" class="btn-primary full-width" onclick="loginGmail()">Sync Workspace</button>
+        <button id="logoutBtn" onclick="logoutUser()" class="btn-ghost full-width hidden">Logout</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main id="appContent" class="main-area">
+    <!-- DASHBOARD VIEW -->
+    <div id="dashboard" class="page-view fade-in">
+      <div class="page-header">
+        <h2>Welcome Back! 🚀</h2>
+        <p class="text-muted">Here is your focus overview for today.</p>
+      </div>
+
+      <div class="dashboard-grid">
+        <!-- Stats -->
+        <div class="glass-panel stat-card">
+          <div class="stat-icon blue">⏱️</div>
+          <div class="stat-info">
+            <h4 class="text-muted">Weekly Focus</h4>
+            <h2 id="weeklyHours" class="stat-value">0.0 <span>hrs</span></h2>
+          </div>
+        </div>
+
+        <div class="glass-panel stat-card">
+          <div class="stat-icon red">🛡️</div>
+          <div class="stat-info">
+            <h4 class="text-muted">Distractions Deflected</h4>
+            <h2 id="totalBlocked" class="stat-value">0</h2>
+          </div>
+        </div>
+
+        <!-- AI Brief -->
+        <div id="aiBrief" class="glass-panel ai-brief-card col-span-2">
+          <div class="brief-header">
+            <span class="sparkle">✨</span>
+            <h3>AI Morning Briefing</h3>
+          </div>
+          <p id="briefContent" class="text-muted">Connect your accounts to generate your neural focus plan...</p>
+        </div>
+      </div>
+
+      <div class="inbox-section">
+        <div class="section-header">
+          <h3>Inbox Stream 📥</h3>
+          <span class="badge">Live</span>
+        </div>
+        <ul id="messages" class="message-list">
+          <li class="empty-state text-muted">No messages yet. Sync your workspace!</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- FOCUS VIEW -->
+    <div id="focusScreen" class="page-view hidden fade-in">
       <div class="focus-header">
-        <div class="recording-dot"></div>
-        <h2>Deep Work Session Active</h2>
+        <div class="recording-indicator">
+          <div class="recording-dot"></div>
+          <span>Deep Work Session Active</span>
+        </div>
         <h1 id="timer" class="glitch-time">--:--</h1>
       </div>
 
-      <div class="grid-container">
-        <div class="glass-panel col-urgent">
+      <div class="triage-grid">
+        <div class="glass-panel triage-col urgent">
           <div class="col-header">
             <span class="indicator red"></span>
             <h3>Urgent Bypass</h3>
@@ -79,7 +126,7 @@
           <ul id="allowed" class="message-list"></ul>
         </div>
         
-        <div class="glass-panel col-important">
+        <div class="glass-panel triage-col important">
           <div class="col-header">
             <span class="indicator yellow"></span>
             <h3>Queued Updates</h3>
@@ -87,7 +134,7 @@
           <ul id="queue" class="message-list"></ul>
         </div>
         
-        <div class="glass-panel col-muted">
+        <div class="glass-panel triage-col muted">
           <div class="col-header">
             <span class="indicator gray"></span>
             <h3>Blocked Noise</h3>
@@ -97,74 +144,106 @@
       </div>
 
       <div class="dock-wrapper">
-        <h4 style="color: var(--text-muted); margin-bottom: 15px; font-weight: 500;">Permitted Workspace</h4>
+        <h4 class="text-muted">Permitted Workspace</h4>
         <div id="focusAllowlist" class="tag-cloud center-cloud"></div>
       </div>
 
       <div class="center-action">
-        <button id="endSessionBtn" onclick="endFocus()" class="btn-danger">Terminate Session</button>
+        <button id="endSessionBtn" onclick="endFocus()" class="btn-danger btn-large">Terminate Session</button>
       </div>
     </div>
 
-    <div id="plannerScreen" class="hidden fade-in" style="max-width: 800px; margin: 40px auto;">
-      <div class="glass-panel" style="border-color: rgba(16, 185, 129, 0.4);">
-        <div class="brief-header">
-          <span class="sparkle">🧠</span>
-          <h3>Neural Sprint Planner</h3>
-        </div>
-        
-        <p class="text-muted" style="margin-bottom: 20px;">Offload your cognitive burden. Let the OS structure your work.</p>
+    <!-- PLANNER VIEW -->
+    <div id="plannerScreen" class="page-view hidden fade-in">
+      <div class="page-header">
+        <h2>Neural Sprint Planner 🧠</h2>
+        <p class="text-muted">Offload your cognitive burden. Let FocusFlow structure your work.</p>
+      </div>
 
-        <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-          <input type="text" id="taskName" placeholder="What is the mission? (e.g., Build Database)" class="sleek-input" style="flex: 2;">
-          <input type="text" id="taskTime" placeholder="Time available? (e.g., 2 hours)" class="sleek-input" style="flex: 1;">
+      <div class="glass-panel planner-card">
+        <div class="input-row">
+          <div class="input-group flex-2">
+            <label>What is the mission?</label>
+            <input type="text" id="taskName" placeholder="e.g., Build Database" class="sleek-input">
+          </div>
+          <div class="input-group flex-1">
+            <label>Time available?</label>
+            <input type="text" id="taskTime" placeholder="e.g., 2 hours" class="sleek-input">
+          </div>
         </div>
-        <textarea id="taskOverview" placeholder="Quick overview of what needs to be done..." class="sleek-input" style="width: 100%; height: 80px; margin-bottom: 15px; resize: none;"></textarea>
         
-        <div class="action-buttons" style="justify-content: space-between; margin-bottom: 20px;">
-          <button onclick="goToDashboard()" class="btn-ghost">← Back to OS</button>
-          <button onclick="generatePlan()" id="generatePlanBtn" class="btn-glow">Generate Execution Plan</button>
+        <div class="input-group mt-15">
+          <label>Task Overview</label>
+          <textarea id="taskOverview" placeholder="Quick overview of what needs to be done..." class="sleek-input textarea-large"></textarea>
         </div>
         
-        <div id="planOutput" class="hidden" style="margin-top: 20px; padding: 20px; background: rgba(0,0,0,0.3); border-radius: 12px; border: 1px solid var(--border-glass);">
-           <h4 id="planTitle" style="color: var(--success); margin-bottom: 10px;"></h4>
-           <p id="planDetails" class="text-muted" style="margin-bottom: 15px;"></p>
+        <div class="action-row mt-20">
+          <button onclick="generatePlan()" id="generatePlanBtn" class="btn-glow btn-large full-width">Generate Execution Plan</button>
+        </div>
+        
+        <div id="planOutput" class="plan-result hidden fade-in">
+           <h3 id="planTitle" class="plan-title"></h3>
+           <p id="planDetails" class="plan-desc text-muted"></p>
            
-           <h5 style="margin-bottom: 10px; color: var(--accent-blue);">🛠️ Requirements:</h5>
-           <ul id="planReqs" style="margin-bottom: 20px; padding-left: 20px; list-style-type: disc;"></ul>
+           <div class="plan-grid">
+             <div class="plan-section">
+               <h5>🛠️ Requirements</h5>
+               <ul id="planReqs" class="custom-list bullet-list"></ul>
+             </div>
+             <div class="plan-section">
+               <h5>⏱️ Schedule</h5>
+               <ul id="planSchedule" class="custom-list number-list"></ul>
+             </div>
+           </div>
            
-           <h5 style="margin-bottom: 10px; color: var(--accent-blue);">⏱️ The Schedule:</h5>
-           <ul id="planSchedule" style="padding-left: 20px; list-style-type: decimal;"></ul>
-           
-           <button onclick="startFocus()" class="btn-primary" style="margin-top: 20px; width: 100%; padding: 15px; font-size: 1.1rem;">Lock In & Start Sprint</button>
+           <button onclick="startFocus()" class="btn-primary btn-large full-width mt-20">Lock In & Start Sprint</button>
         </div>
       </div>
     </div>
 
-    <div id="settingsScreen" class="hidden glass-panel settings-card fade-in">
-      <h2>System Preferences</h2>
-      <p class="text-muted">Configure your optimal sprint duration.</p>
-      
-      <div class="input-group">
-        <label for="focusTimeInput">Sprint Duration (Mins)</label>
-        <input type="number" id="focusTimeInput" value="25" min="1" max="120" class="sleek-input">
+    <!-- SETTINGS VIEW -->
+    <div id="settingsScreen" class="page-view hidden fade-in">
+      <div class="page-header">
+        <h2>System Preferences ⚙️</h2>
+        <p class="text-muted">Configure your optimal sprint duration and tools.</p>
       </div>
-
-      <div class="input-group">
-        <label>Permitted Apps (Allowlist)</label>
-        <div style="display: flex; gap: 10px;">
-          <input type="text" id="newAppInput" placeholder="e.g., Notion, VS Code" class="sleek-input" style="flex: 1;">
-          <button onclick="addApp()" class="btn-outline">+</button>
+      
+      <div class="settings-grid">
+        <div class="glass-panel settings-card">
+          <h3>Session Limits</h3>
+          <div class="input-group mt-15">
+            <label for="focusTimeInput">Sprint Duration (Minutes)</label>
+            <input type="number" id="focusTimeInput" value="25" min="1" max="120" class="sleek-input">
+          </div>
+          <button onclick="saveSettings()" class="btn-primary mt-15">Save Configuration</button>
         </div>
-        <div id="settingsAllowlist" class="tag-cloud" style="margin-top: 15px;"></div>
-      </div>
-      
-      <div class="settings-actions">
-        <button onclick="goToDashboard()" class="btn-ghost">Cancel</button>
-        <button onclick="saveSettings()" class="btn-primary">Save Configuration</button>
+
+        <div class="glass-panel settings-card">
+          <h3>Permitted Apps</h3>
+          <p class="text-muted text-small mb-10">Tools allowed during Deep Work.</p>
+          <div class="input-row">
+            <input type="text" id="newAppInput" placeholder="e.g., Notion, VS Code" class="sleek-input flex-1">
+            <button onclick="addApp()" class="btn-outline">Add</button>
+          </div>
+          <div id="settingsAllowlist" class="tag-cloud mt-15"></div>
+        </div>
       </div>
     </div>
   </main>
+</div>
+
+<!-- PUNISHMENT OVERLAY -->
+<div id="punishmentOverlay" class="hidden">
+  <div class="punishment-content">
+    <h1 class="glitch-text-danger">⚠️ FOCUS BREACH DETECTED ⚠️</h1>
+    <p style="margin-bottom: 20px;">You attempted to escape Hard Block mode.</p>
+    <button onclick="resumeHardBlock()" class="btn-danger btn-large" style="box-shadow: 0 0 30px red;">I'm Sorry, Let Me Back In</button>
+  </div>
+</div>
+
+<!-- TOAST NOTIFICATION -->
+<div id="toastNotification" class="toast">
+  <span id="toastMessage"></span>
 </div>
 
 <script type="module" src="script.js"></script>

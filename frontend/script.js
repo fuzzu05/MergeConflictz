@@ -1,18 +1,18 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-analytics.js";
-import { getFirestore, collection, addDoc, doc, setDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, doc, setDoc, onSnapshot, query, orderBy, where } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // 🔑 CONFIGS
 const firebaseConfig = {
-    apiKey: "AIzaSyB15NotJNKVvgJfyYJMc4HQ9hoVpRJlo4w",
-    authDomain: "mergeconflictwinz.firebaseapp.com",
-    projectId: "mergeconflictwinz",
-    storageBucket: "mergeconflictwinz.firebasestorage.app",
-    messagingSenderId: "416094858698",
-    appId: "1:416094858698:web:0c4e6f06c463a9a8a17333",
-    measurementId: "G-4W53PS9H68"
+  apiKey: "AIzaSyB15NotJNKVvgJfyYJMc4HQ9hoVpRJlo4w",
+  authDomain: "mergeconflictwinz.firebaseapp.com",
+  projectId: "mergeconflictwinz",
+  storageBucket: "mergeconflictwinz.firebasestorage.app",
+  messagingSenderId: "416094858698",
+  appId: "1:416094858698:web:0c4e6f06c463a9a8a17333",
+  measurementId: "G-4W53PS9H68"
 };
 
 const GEMINI_API_KEY = "AQ.Ab8RN6K55v6TuTRzYfuPbwjE-4wpPZOxWkG1KVqb5clPkJkMGw";
@@ -28,7 +28,9 @@ let currentUser = null;
 let gmailToken = null;
 let mode = "normal";
 let unsubscribe = null;
+let statsUnsubscribe = null;
 let focusDuration = 25 * 60;
+let currentTimerSeconds = 0;
 let timerInterval = null;
 
 // 🧠 AI SMART TRIAGE
@@ -47,6 +49,21 @@ async function getSmartTriage(text) {
   }
 }
 
+// 🔔 TOAST NOTIFICATIONS
+window.showToast = (msg) => {
+  const toast = document.getElementById("toastNotification");
+  const msgEl = document.getElementById("toastMessage");
+  if (!toast || !msgEl) return;
+  
+  msgEl.innerText = msg;
+  toast.classList.add("show");
+  
+  if (window.toastTimer) clearTimeout(window.toastTimer);
+  window.toastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 4000);
+};
+
 // 🔐 AUTH & GMAIL
 window.loginUser = () => signInWithPopup(auth, new GoogleAuthProvider());
 
@@ -54,27 +71,23 @@ window.loginGmail = () => {
   const client = google.accounts.oauth2.initTokenClient({
     client_id: "632430619508-0mmfo7ueppf1tg73o4d1obtorhgiiia2.apps.googleusercontent.com",
     scope: "https://www.googleapis.com/auth/gmail.readonly",
-    callback: (res) => { 
-      gmailToken = res.access_token; 
-      alert("Gmail Synced! AI Auto-sync activated 🚀"); 
-      
-      // 1. Run the AI Sync immediately
-      syncAll(); 
-      
-      // 2. Set an interval to auto-run it every 60 seconds (60000 milliseconds)
-      setInterval(syncAll, 60000); 
+    callback: (res) => {
+      gmailToken = res.access_token;
+      showToast("Gmail Synced! AI Auto-sync activated 🚀");
+      syncAll();
+      setInterval(syncAll, 60000);
     }
   });
   client.requestAccessToken();
 };
 
-// 📧 SYNC GMAIL + AI (FIXED)
+// 📧 SYNC GMAIL + AI
 window.syncAll = async () => {
   if (!gmailToken || !currentUser) {
-    alert("Please connect both Login and Gmail first!");
+    showToast("Please connect both Login and Gmail first!");
     return;
   }
-  
+
   try {
     const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5", {
       headers: { Authorization: `Bearer ${gmailToken}` }
@@ -94,24 +107,20 @@ window.syncAll = async () => {
       const detail = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}`, {
         headers: { Authorization: `Bearer ${gmailToken}` }
       });
-      const d = await detail.json(); // <--- This was the missing 'd'
-      
-      // The AI Brain working:
+      const d = await detail.json();
+
       if (d.snippet) {
         const ai = await getSmartTriage(d.snippet);
-        
-        // 🔥 Using setDoc with merge: true prevents duplicates!
-        // It uses the actual Gmail ID (m.id)
+
         await setDoc(msgRef, {
           text: ai.summary,
           priority: ai.priority,
-          timestamp: Date.now() // You might want to use d.internalDate here if you want accurate email times
-        }, { merge: true }); 
+          timestamp: Date.now()
+        }, { merge: true });
       }
     }
-    
-    document.getElementById("briefContent").innerText = "Inbox synced! Focus OS is protecting your time.";
-    
+
+    document.getElementById("briefContent").innerText = "Inbox synced! FocusFlow is protecting your time.";
   } catch (error) {
     console.error("🚨 Background Sync Error (Safe to ignore):", error);
     document.getElementById("briefContent").innerText = "Error syncing messages. Check console.";
@@ -122,10 +131,13 @@ window.syncAll = async () => {
 function listen() {
   if (unsubscribe) unsubscribe();
   const q = query(collection(db, "users", currentUser.uid, "messages"), orderBy("timestamp", "desc"));
-  
+
   unsubscribe = onSnapshot(q, (snap) => {
     const lists = ["messages", "allowed", "queue", "blocked"];
-    lists.forEach(id => document.getElementById(id).innerHTML = "");
+    lists.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = "";
+    });
 
     snap.forEach(doc => {
       const data = doc.data();
@@ -140,57 +152,185 @@ function listen() {
         else document.getElementById("blocked").appendChild(li);
       }
     });
+
+    if (mode === "normal" && snap.empty) {
+      document.getElementById("messages").innerHTML = `<li class="empty-state text-muted">Inbox clear! No new messages.</li>`;
+    }
   });
 }
 
-// 🧘 FOCUS MODES
+function listenToStats() {
+  if (statsUnsubscribe) statsUnsubscribe();
+
+  const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  const q = query(
+    collection(db, "users", currentUser.uid, "stats"),
+    where("timestamp", ">=", sevenDaysAgo)
+  );
+
+  statsUnsubscribe = onSnapshot(q, (snap) => {
+    let totalMinutes = 0;
+    let totalBlocked = 0;
+
+    snap.forEach(doc => {
+      const data = doc.data();
+      totalMinutes += data.durationMinutes || 0;
+      totalBlocked += data.notificationsBlocked || 0;
+    });
+
+    const hours = (totalMinutes / 60).toFixed(1);
+
+    const weeklyHoursEl = document.getElementById("weeklyHours");
+    if (weeklyHoursEl) weeklyHoursEl.innerHTML = `${hours} <span>hrs</span>`;
+
+    const totalBlockedEl = document.getElementById("totalBlocked");
+    if (totalBlockedEl) totalBlockedEl.innerText = totalBlocked;
+  });
+}
+
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    currentUser = user;
+
+    // UI Updates
+    document.getElementById("loginBtn").classList.add("hidden");
+    document.getElementById("logoutBtn").classList.remove("hidden");
+    const badge = document.getElementById("userBadge");
+    if (badge) badge.classList.remove("hidden");
+
+    listen();
+    listenToStats();
+  }
+});
+
+// 🧘 NAVIGATION & MODES
+function setActiveNav(navId) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const activeEl = document.getElementById(navId);
+  if (activeEl) activeEl.classList.add('active');
+}
+
+function hideAllPages() {
+  document.querySelectorAll('.page-view').forEach(el => el.classList.add('hidden'));
+}
+
+window.goToDashboard = () => {
+  hideAllPages();
+  document.getElementById("dashboard").classList.remove("hidden");
+  setActiveNav("nav-dashboard");
+};
+
+window.goToPlanner = () => {
+  hideAllPages();
+  document.getElementById("plannerScreen").classList.remove("hidden");
+  setActiveNav("nav-planner");
+};
+
+window.goToSettings = () => {
+  hideAllPages();
+  document.getElementById("settingsScreen").classList.remove("hidden");
+  setActiveNav("nav-settings");
+};
+
 window.startFocus = () => {
   mode = "focus";
   document.body.classList.add("focus-mode-bg");
-  document.getElementById("dashboard").classList.add("hidden");
+  hideAllPages();
   document.getElementById("focusScreen").classList.remove("hidden");
+  setActiveNav("nav-focus");
   listen();
-  startTimer(focusDuration);
+  currentTimerSeconds = focusDuration;
+  startTimer();
 };
 
-// 🔒 HARD BLOCK MODE
 window.startHardBlock = () => {
   mode = "hardblock";
-  
-  // 1. Enter Fullscreen Mode!
   if (document.documentElement.requestFullscreen) {
     document.documentElement.requestFullscreen().catch(e => console.log("Fullscreen blocked"));
   }
-
-  // 2. Hide the exit button (The Trap)
   document.getElementById("endSessionBtn").classList.add("hidden");
 
-  // 3. Change UI to Lockdown Mode
   document.body.classList.add("focus-mode-bg", "hard-block-active");
-  document.getElementById("dashboard").classList.add("hidden");
+  hideAllPages();
   document.getElementById("focusScreen").classList.remove("hidden");
-  
-  document.querySelector(".focus-header h2").innerText = "🔒 SYSTEM LOCKED";
-  document.querySelector(".focus-header h2").style.color = "var(--danger)";
+
+  const indicator = document.querySelector(".recording-indicator span");
+  if (indicator) indicator.innerText = "SYSTEM LOCKED";
 
   listen();
-  startTimer(focusDuration);
+  currentTimerSeconds = focusDuration;
+  startTimer();
 };
 
+// --- PUNISHMENT LOGIC ---
+let audioCtx = null;
+let sirenInterval = null;
+
+function playSiren() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (sirenInterval) return; // Already playing
+
+  sirenInterval = setInterval(() => {
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+    osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.25);
+    osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 0.5);
+
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); // Loud enough to be annoying
+
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.5);
+  }, 500);
+}
+
+function stopSiren() {
+  if (sirenInterval) {
+    clearInterval(sirenInterval);
+    sirenInterval = null;
+  }
+}
+
+document.addEventListener("fullscreenchange", () => {
+  if (mode === "hardblock" && !document.fullscreenElement) {
+    // Escaped! Trigger punishment!
+    const overlay = document.getElementById("punishmentOverlay");
+    if (overlay) overlay.classList.remove("hidden");
+    playSiren();
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+});
+
+window.resumeHardBlock = () => {
+  if (document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen();
+  }
+  const overlay = document.getElementById("punishmentOverlay");
+  if (overlay) overlay.classList.add("hidden");
+  stopSiren();
+  startTimer();
+};
+// ------------------------
+
 window.endFocus = async () => {
-  if (timerInterval) clearInterval(timerInterval); 
-  
-  // 📊 LOG THE SESSION DATA
+  if (timerInterval) clearInterval(timerInterval);
+
   if (currentUser && mode !== "normal") {
     const sessionRef = doc(collection(db, "users", currentUser.uid, "stats"));
-    const durationReached = focusDuration - (parseInt(document.getElementById("timer").textContent.split(':')[0]) * 60);
-    
-    // Count how many notifications are currently in the blocked/queued lists
+    const durationReached = focusDuration - currentTimerSeconds;
     const blockedCount = document.getElementById("blocked").children.length;
     const queuedCount = document.getElementById("queue").children.length;
 
     await setDoc(sessionRef, {
-      date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+      date: new Date().toISOString().split('T')[0],
       timestamp: Date.now(),
       durationMinutes: Math.floor(durationReached / 60),
       notificationsBlocked: blockedCount + queuedCount,
@@ -198,57 +338,57 @@ window.endFocus = async () => {
     });
   }
 
-  // (Existing UI Reset Logic Below)
   if (document.fullscreenElement) document.exitFullscreen();
+
+  // Clear any punishment if it was active
+  const overlay = document.getElementById("punishmentOverlay");
+  if (overlay) overlay.classList.add("hidden");
+  stopSiren();
+
   mode = "normal";
   document.body.classList.remove("focus-mode-bg", "hard-block-active");
-  document.getElementById("focusScreen").classList.add("hidden");
-  document.getElementById("dashboard").classList.remove("hidden");
+
+  const indicator = document.querySelector(".recording-indicator span");
+  if (indicator) indicator.innerText = "Deep Work Session Active";
+
+  goToDashboard();
   listen();
 };
 
-function startTimer(duration) {
-  if (timerInterval) clearInterval(timerInterval); 
-  let timer = duration;
+function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
   const display = document.getElementById("timer");
-  
+
+  // Initial display update before the first interval tick
+  let mins = Math.floor(currentTimerSeconds / 60);
+  let secs = currentTimerSeconds % 60;
+  display.textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
   timerInterval = setInterval(() => {
-    let mins = Math.floor(timer / 60);
-    let secs = timer % 60;
+    currentTimerSeconds--;
+    let mins = Math.floor(currentTimerSeconds / 60);
+    let secs = currentTimerSeconds % 60;
     display.textContent = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-    
-    if (--timer < 0) { 
-      clearInterval(timerInterval); 
-      // 🔓 UNLOCK: Give the button back!
+
+    if (currentTimerSeconds <= 0) {
+      clearInterval(timerInterval);
       document.getElementById("endSessionBtn").classList.remove("hidden");
-      alert("Session Complete! System Unlocked. 🔓"); 
-      endFocus(); 
+      showToast("Session Complete! System Unlocked. 🔓");
+      window.endFocus();
     }
   }, 1000);
 }
 
-onAuthStateChanged(auth, (user) => { if(user) { currentUser = user; listen(); } });
-
 // ⚙️ SETTINGS LOGIC
-window.goToSettings = () => {
-  document.getElementById("dashboard").classList.add("hidden");
-  document.getElementById("settingsScreen").classList.remove("hidden");
-};
-
-window.goToDashboard = () => {
-  document.getElementById("settingsScreen").classList.add("hidden");
-  document.getElementById("dashboard").classList.remove("hidden");
-};
-
 window.saveSettings = () => {
   const mins = document.getElementById("focusTimeInput").value;
-  
+
   if (mins && mins > 0) {
     focusDuration = mins * 60; // Convert minutes to seconds
-    alert(`✅ Focus time updated to ${mins} minutes!`);
+    showToast(`✅ Focus time updated to ${mins} minutes!`);
     goToDashboard();
   } else {
-    alert("Please enter a valid number of minutes.");
+    showToast("Please enter a valid number of minutes.");
   }
 };
 
@@ -274,36 +414,39 @@ function renderApps() {
   const focusList = document.getElementById("focusAllowlist");
 
   if (settingsList) {
-    settingsList.innerHTML = allowedApps.map(a => 
-      `<span class="app-tag">${a} <b onclick="removeApp('${a}')">&times;</b></span>`
+    settingsList.innerHTML = allowedApps.map(a =>
+      `<span class="app-tag">${a} <button onclick="removeApp('${a}')">&times;</button></span>`
     ).join('');
   }
 
   if (focusList) {
-    focusList.innerHTML = allowedApps.map(a => 
+    focusList.innerHTML = allowedApps.map(a =>
       `<span class="app-tag glow">⚡ ${a}</span>`
     ).join('');
   }
 }
 
-// Call this once at the very bottom of your script file to load the defaults:
+// Load default allowlist
 renderApps();
 
 // 🚪 LOGOUT LOGIC
 window.logoutUser = async () => {
   try {
-    // 1. Sign out of Firebase
     await signOut(auth);
-    
-    // 2. Clear all local variables
+
     currentUser = null;
     gmailToken = null;
-    
-    // 3. Stop any background timers or database listeners
+
     if (timerInterval) clearInterval(timerInterval);
     if (unsubscribe) unsubscribe();
-    
-    // 4. Reset the UI text and lists
+    if (statsUnsubscribe) statsUnsubscribe();
+
+    const weeklyHoursEl = document.getElementById("weeklyHours");
+    if (weeklyHoursEl) weeklyHoursEl.innerHTML = `0.0 <span>hrs</span>`;
+
+    const totalBlockedEl = document.getElementById("totalBlocked");
+    if (totalBlockedEl) totalBlockedEl.innerText = "0";
+
     document.getElementById("briefContent").innerText = "Connect your accounts to generate your focus plan...";
     const lists = ["messages", "allowed", "queue", "blocked"];
     lists.forEach(id => {
@@ -311,45 +454,31 @@ window.logoutUser = async () => {
       if (el) el.innerHTML = "";
     });
 
-    // 5. Ensure they are sent back to the main dashboard view
-    document.body.classList.remove("focus-mode-bg");
-    document.getElementById("focusScreen").classList.add("hidden");
-    document.getElementById("settingsScreen").classList.add("hidden");
-    document.getElementById("dashboard").classList.remove("hidden");
-    
-    alert("Logged out successfully! Catch some sleep soon. 🚀");
-    
+    document.getElementById("loginBtn").classList.remove("hidden");
+    document.getElementById("logoutBtn").classList.add("hidden");
+    const badge = document.getElementById("userBadge");
+    if (badge) badge.classList.add("hidden");
+
+    document.body.classList.remove("focus-mode-bg", "hard-block-active");
+    goToDashboard();
+
+    showToast("Logged out successfully! Catch some sleep soon. 🚀");
+
   } catch (error) {
     console.error("🚨 Logout Error:", error);
-    alert("Something went wrong logging out.");
+    showToast("Something went wrong logging out.");
   }
 };
 
-
 // ==========================================
-// 🧠 NEURAL SPRINT PLANNER (NEW FEATURE)
+// 🧠 NEURAL SPRINT PLANNER
 // ==========================================
-
-// 1. Navigation overrides
-window.goToPlanner = () => {
-  document.getElementById("dashboard").classList.add("hidden");
-  document.getElementById("plannerScreen").classList.remove("hidden");
-};
-
-// Update existing goToDashboard to hide the planner too
-window.goToDashboard = () => {
-  document.getElementById("settingsScreen").classList.add("hidden");
-  document.getElementById("plannerScreen").classList.add("hidden");
-  document.getElementById("dashboard").classList.remove("hidden");
-};
-
-// 2. The AI Generation Logic
 window.generatePlan = async () => {
   const name = document.getElementById("taskName").value;
   const time = document.getElementById("taskTime").value;
   const overview = document.getElementById("taskOverview").value;
 
-  if (!name || !time) return alert("Task name and time are required!");
+  if (!name || !time) return showToast("Task name and time are required!");
 
   const btn = document.getElementById("generatePlanBtn");
   btn.innerText = "Processing Neural Plan... ⚙️";
@@ -369,32 +498,29 @@ window.generatePlan = async () => {
       ]
     }`;
 
-    // Send to Gemini
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    
-    // Clean up response (removes ```json formatting if Gemini adds it)
+
     const cleanJson = response.text().replace(/```json|```/g, "").trim();
     const plan = JSON.parse(cleanJson);
 
-    // Render the UI
     document.getElementById("planOutput").classList.remove("hidden");
     document.getElementById("planTitle").innerText = plan.title;
     document.getElementById("planDetails").innerText = plan.overview;
-    
+
     document.getElementById("planReqs").innerHTML = plan.requirements
-      .map(req => `<li style="margin-bottom: 5px; border: none; padding: 0; background: transparent;">• ${req}</li>`)
+      .map(req => `<li>${req}</li>`)
       .join("");
-      
+
     document.getElementById("planSchedule").innerHTML = plan.schedule
-      .map(s => `<li style="margin-bottom: 5px; border: none; padding: 0; background: transparent;"><b>${s.time}:</b> ${s.step}</li>`)
+      .map(s => `<li><b>${s.time}</b> ${s.step}</li>`)
       .join("");
 
     btn.innerText = "Regenerate Plan";
 
   } catch (error) {
     console.error("Planner Error:", error);
-    alert("Failed to generate plan. Ensure API key is valid.");
+    showToast("Failed to generate plan. Ensure API key is valid.");
     btn.innerText = "Generate Execution Plan";
   }
 };
