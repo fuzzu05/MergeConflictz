@@ -6,16 +6,10 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // 🔑 CONFIGS
 const firebaseConfig = {
-  apiKey: "AIzaSyB15NotJNKVvgJfyYJMc4HQ9hoVpRJlo4w",
-  authDomain: "mergeconflictwinz.firebaseapp.com",
-  projectId: "mergeconflictwinz",
-  storageBucket: "mergeconflictwinz.firebasestorage.app",
-  messagingSenderId: "416094858698",
-  appId: "1:416094858698:web:0c4e6f06c463a9a8a17333",
-  measurementId: "G-4W53PS9H68"
+  //Your firebase project web app config!
 };
 
-const GEMINI_API_KEY = "AQ.Ab8RN6K55v6TuTRzYfuPbwjE-4wpPZOxWkG1KVqb5clPkJkMGw";
+const GEMINI_API_KEY = "Your gemini api key";
 
 // INITIALIZE
 const app = initializeApp(firebaseConfig);
@@ -69,7 +63,7 @@ window.loginUser = () => signInWithPopup(auth, new GoogleAuthProvider());
 
 window.loginGmail = () => {
   const client = google.accounts.oauth2.initTokenClient({
-    client_id: "632430619508-0mmfo7ueppf1tg73o4d1obtorhgiiia2.apps.googleusercontent.com",
+    client_id: "your client id of gmail api",
     scope: "https://www.googleapis.com/auth/gmail.readonly",
     callback: (res) => {
       gmailToken = res.access_token;
